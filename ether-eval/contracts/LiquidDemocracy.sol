@@ -12,6 +12,8 @@ contract LiquidDemocracy{
   mapping (address => address[]) public v_to_children;
   uint public voter_count;
 
+  // add by hzx
+  LinkCutTree lct;
 
   event Delegate(address from, address to, uint height);
   event Undelegate(address from, address to, uint height);
@@ -21,6 +23,9 @@ contract LiquidDemocracy{
   constructor() public{
     owner = msg.sender;
     voter_count = 0;
+    // alert by hzx
+    // initialize lct.
+    lct = LinkCutTree();
   }
 
   modifier isOwner{
@@ -32,6 +37,11 @@ contract LiquidDemocracy{
     require(addr != address(0x0));
     vote_weight[addr] = weight;
     voter_count ++;
+
+    // alert by hzx 
+    // add a new address.
+    lct.add_address(addr);
+
     emit SetWeight(addr, weight, block.number);
   }
 
@@ -43,14 +53,20 @@ contract LiquidDemocracy{
     require(_to != msg.sender, "cannot be self");
     require(vote_weight[msg.sender] != 0, "no sender");
     require(vote_weight[_to] != 0, "no _to");
-    //bool has_circle = check_circle(msg.sender, _to);
-    //require(!has_circle, "cannot be circle");
+    // bool has_circle = check_circle(msg.sender, _to);
+    // require(!has_circle, "cannot be circle");
 
+    // alert by hzx
+    // cut edge from msg.sender to _to.
     address old = v_to_parent[msg.sender];
-    if(old != address(0x0)){
+    if(odl != address(0x0)){
+      lct.undelegate(msg.sender, _to);
       address[] storage children = v_to_children[old];
       children.remove(msg.sender);
     }
+    // link msg.sender to _to
+    bool delegate_res = lct.delegate(msg.sender, _to);
+    require(delegate_res, "cannot be circle");
     v_to_parent[msg.sender] = _to;
     v_to_children[_to].push(msg.sender);
 

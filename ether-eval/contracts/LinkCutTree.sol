@@ -1,10 +1,10 @@
 pragma solidity >=0.4.21 <0.6.0;
 
 contract LinkCutTree {
-    mapping(address => uint32) public v_to_number; // node’s address to number
+    mapping(address => uint32) public mAddr_number; // node’s address to number
     uint8[] public vtag;
     uint32[] public vfather;
-    uint32[] public vchild;
+    uint32[][] public vchild;
     uint32 public node_count;
     uint[] weight;
 
@@ -29,64 +29,69 @@ contract LinkCutTree {
         uint32 y = add_address(_to);
         makeroot(y);
         // 如果y和x不在一棵树上，或者x和y之间不邻接(x的父亲不是y 或者x有左儿子)，不进行cut
-        bool connected = findRoot(x) != y || vfather[x] != y || vchild[x][0];
+        uint32 f = vfather[x];
+        bool connected = (findRoot(x) != y )|| (f != y) || (vchild[x][0]>0);
         require(connected, "have no delegation relationship");
-        vfather[x] = vchild[y][1] = 0;
+        vfather[x] = 0;
+        vchild[y][1] = 0;
         update(y);
         return true;
     }
 
     // check wheter there is a path between _from and to
-    function is_connected(address _from, address _to) internal retruns(bool){
-        uint32 from_number = v_to_number[_from];
+    function is_connected(address _from, address _to) internal returns(bool){
+        uint32 from_number = mAddr_number[_from];
         bool ans = false;
         if(from_number == 0){
             return ans;
         }
-        uint32 to_number = v_to_number[_to];
+        uint32 to_number = mAddr_number[_to];
         if(to_number == 0){
             return ans;
         }
-        if(findroot(from_number) == findroot(to_number)){
+        if(findRoot(from_number) == findRoot(to_number)){
             ans =  true;
         }
         return ans;
     }
 
         // add a new address
-    function add_address(address addr) internal returns(uint32){
-        if (v_to_number[addr] == 0) {
+    function add_address(address addr) public returns(uint32){
+        if (mAddr_number[addr] == 0) {
             ++node_count;
-            v_to_number[addr] = node_count;
+            mAddr_number[addr] = node_count;
             vfather.push(0);
-            vchild.push(0);
+            vchild.push([0,0]);
             vtag.push(0);
-            ans = true;
         }
-        return v_to_number[addr];
+        return mAddr_number[addr];
     }
 
     // judge x is a left child or a right child in a splay.
     function getch(uint32 x) internal view returns (uint32) {
-        if (vchild[vfather[x]][1] == x) return 1;
-        return 0;
+        uint32 ans = 0;
+        if (vchild[vfather[x]][1] == x) ans += 1;
+        return ans;
     }
 
     // judge wheter x is the root of its splay.
     function isroot(uint32 x) internal view returns(bool){
-        return vchild[vfather[x]][0] != x && vchild[vfather[x]][1] != x;
+        bool ans = false;
+        if(vchild[vfather[x]][0] != x && vchild[vfather[x]][1] != x)
+            ans = true;
+        return ans;
     }
 
     // transmit information from x to its children.
     function pushdown(uint32 x)internal {
         if(vtag[x] == 1){
-            if (vchild[x][0]){
+            if (vchild[x][0] > 0){
                 uint32 temp = vchild[vchild[x][0]][0];
                 vchild[vchild[x][0]][0] = vchild[vchild[x][0]][1];
                 vchild[vchild[x][0]][1] = temp;
                 vtag[vchild[x][0]] ^= 1;
             }
-            if (vchild[x][1]){
+            if (vchild[x][1] > 0){
                 uint32 temp = vchild[vchild[x][1]][0];
                 vchild[vchild[x][1]][0] = vchild[vchild[x][1]][1];
                 vchild[vchild[x][1]][1] = temp;
@@ -108,7 +113,7 @@ contract LinkCutTree {
         uint32 y = vfather[x];
         uint32 z = vfather[y];
         uint32 chx = getch(x);
-        utin32 chy = getch(y);
+        uint32 chy = getch(y);
         vfather[x] = z;
         if (!isroot(y))
             vchild[z][chy] = x;
@@ -122,13 +127,22 @@ contract LinkCutTree {
     function splay(uint32 x) internal{
         // update information in the path which is from the root to x.
         update(x);
-        int f;
+        uint32 f;
         // while 保证x一定可以旋转到根节点位置
         while (!isroot(x))
         {
             f = vfather[x];
-            if (!isroot(f))
-                rotate(getch(x) == getch(f) ? f : x);
+            if (isroot(f)){
+                uint32 chx = getch(x);
+                uint32 chy = getch(f);
+                if(chx == chy){
+                    rotate(f);
+                }
+                else{
+                    rotate(x);
+                }
+                // rotate(getch(x) == getch(f) ? f : x);
+            }
             rotate(x);
         }
     }
@@ -137,13 +151,11 @@ contract LinkCutTree {
     function access(uint32 x) internal{
         // 将最后一个点的右儿子变为0，即变为虚边
         uint32 son = 0;
-        while(x){
+        while(x>0){
             // 将x转换为当前树的树根
             splay(x);
             // 将x的右儿子设置为前一棵splay树的树根
             vchild[x][1] = son;
-            // x的孩子发生变化，上传信息
-            pushup(x);
             // son 保存当前splay树树根，x是其父节点
             x = vfather[son = x];
         }
@@ -156,7 +168,9 @@ contract LinkCutTree {
         // splay(x) 之后x在这个树的最右下角 
         splay(x);
         // 交换x的左孩子节点和右孩子节点
-        swap(vchild[x][0], vchild[x][1]);
+        uint32 temp = vchild[x][0];
+        vchild[x][0] = vchild[x][1];
+        vchild[x][1] = temp;
         // 进行懒人标记，不再递归的进行翻转
         vtag[x] ^= 1;
     }
@@ -167,7 +181,7 @@ contract LinkCutTree {
         access(x);
         splay(x);
         // 最左边的一定是根节点
-        while (vchild[x][0])
+        while (vchild[x][0]>0)
         {
             // 下传懒标记
             pushdown(x);

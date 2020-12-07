@@ -15,11 +15,11 @@ contract LinkCutTree {
     // _from delegates its voting power to _to
     function delegate(address _from, address _to) external returns(bool){
         bool has_path = is_connected(_from, _to);
-        require(!has_circle, "cannot be circle");
+        require(!has_path, "cannot be circle");
         uint32 num_from = add_address(_from);
         uint32 num_to = add_address(_to);
-        makeroot(num_from);
-        vfather[num_from] = num_to;
+        makeroot(num_to);
+        vfather[num_to] = num_from;
         return true;
     }
 

@@ -13,6 +13,7 @@ contract LiquidDemocracy{
   uint public voter_count;
 
   // add by hzx
+  // a data structure to detect delagation relation ship among addresses.
   LinkCutTree lct;
 
   event Delegate(address from, address to, uint height);
